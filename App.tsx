@@ -1,20 +1,28 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { RecordingProvider } from './src/screens/RecordingContext';
+import Home from './src/screens/Home';
+import Library from './src/screens/Library';
+import Record from './src/screens/Record';
+import Export from './src/screens/Export';
+import './global.css';
 
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
+const Tab = createBottomTabNavigator();
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const App: React.FC = () => {
+    return (
+        <RecordingProvider>
+            <NavigationContainer>
+                <Tab.Navigator>
+                    <Tab.Screen name="Home" component={Home} />
+                    <Tab.Screen name="Library" component={Library} />
+                    <Tab.Screen name="Record" component={Record} />
+                    <Tab.Screen name="Export" component={Export} />
+                </Tab.Navigator>
+            </NavigationContainer>
+        </RecordingProvider>
+    );
+};
+
+export default App;
