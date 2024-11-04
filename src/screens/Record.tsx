@@ -21,6 +21,8 @@ const Record: React.FC = () => {
     const [recordings, setRecordings] = useState<RecordingMetadata[]>([]);
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
+    const [currentRecordingMetadata, setCurrentRecordingMetadata] = useState<RecordingMetadata | null>(null);
+    const [currentNotes, setCurrentNotes] = useState<Note[]>([]);
 
     useEffect(() => {
         loadRecordings();
@@ -67,28 +69,43 @@ const Record: React.FC = () => {
     const saveRecording = async (uri: string) => {
         const timestamp = new Date().toISOString();
         const dirName = `recording_${timestamp.replace(/[:.]/g, '-')}`;
-        const dirPath = `${FileSystem.documentDirectory}${dirName}/`;
+        const dirPath = `${FileSystem.documentDirectory}${dirName}`;
 
         try {
+            console.log('Creating directory at:', dirPath);
             await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
 
-            const audioPath = `${dirPath}audio.mp3`;
+            const audioPath = `${dirPath}/audio.mp3`;
+            console.log('Moving audio file from:', uri);
+            console.log('Moving audio file to:', audioPath);
+            
             await FileSystem.moveAsync({
                 from: uri,
                 to: audioPath,
             });
 
             const metadata: RecordingMetadata = {
-                notes: [],
-                audioPath,
+                notes: currentRecordingMetadata?.notes || [],
+                audioPath: audioPath,
             };
 
-            const metadataPath = `${dirPath}metadata.json`;
-            await FileSystem.writeAsStringAsync(metadataPath, JSON.stringify(metadata));
+            const metadataPath = `${dirPath}/metadata.json`;
+            console.log('Saving metadata to:', metadataPath);
+            console.log('Metadata content:', JSON.stringify(metadata, null, 2));
+            
+            await FileSystem.writeAsStringAsync(
+                metadataPath, 
+                JSON.stringify(metadata, null, 2)
+            );
 
-            setRecordings((prevRecordings) => [...prevRecordings, metadata]);
+            setRecordings(prev => [...prev, metadata]);
+            console.log('Recording saved successfully with notes');
+            
+            setCurrentRecordingMetadata(null);
+            setCurrentNotes([]);
         } catch (error) {
             console.error('Error saving recording:', error);
+            console.error('Error details:', JSON.stringify(error, null, 2));
         }
     };
 
@@ -111,6 +128,9 @@ const Record: React.FC = () => {
             setRecording(recordingInstance);
             setIsRecording(true);
             setIsPaused(false);
+            
+            setCurrentRecordingMetadata(null);
+            setCurrentNotes([]);
         } catch (error) {
             console.error('Error starting recording:', error);
         }
@@ -150,32 +170,50 @@ const Record: React.FC = () => {
     };
 
     const addNote = async () => {
-        if (!note.trim()) return;
-        
+        if (!note.trim() || !isRecording) return;
+    
         const timestamp = new Date().toISOString();
         const newNote: Note = {
             timestamp,
-            note: note.trim()
+            note: note.trim(),
         };
-
-        if (isRecording && recording) {
-            // Add note to the current recording session
-            setRecordings(prevRecordings => {
-                const updatedRecordings = [...prevRecordings];
-                const currentRecording = updatedRecordings[updatedRecordings.length - 1];
-                if (currentRecording) {
-                    currentRecording.notes = [...currentRecording.notes, newNote];
-                }
-                return updatedRecordings;
-            });
+    
+        try {
+            const uri = recording?.getURI();
+            if (!uri) {
+                console.error('No active recording URI found');
+                return;
+            }
+    
+            // Check if we need to create a new metadata object or update existing
+            if (!currentRecordingMetadata) {
+                // Initialize currentRecordingMetadata if it doesn't exist
+                const newRecordingMetadata: RecordingMetadata = {
+                    notes: [newNote],
+                    audioPath: uri,
+                };
+                setCurrentRecordingMetadata(newRecordingMetadata);
+                setCurrentNotes([newNote]); // Initialize currentNotes
+            } else {
+                // Update the existing currentRecordingMetadata with the new note
+                const updatedMetadata: RecordingMetadata = {
+                    ...currentRecordingMetadata,
+                    notes: [...currentRecordingMetadata.notes, newNote],
+                };
+                setCurrentRecordingMetadata(updatedMetadata);
+                setCurrentNotes(prevNotes => [...prevNotes, newNote]); // Update currentNotes
+            }
+    
+            // Clear the note input field
+            setNote('');
+            console.log('Note added successfully');
+        } catch (error) {
+            console.error('Error adding note:', error);
         }
-
-        setNote(''); // Clear the input
     };
-
+    
     const playRecording = async (audioPath: string) => {
         try {
-            // Stop any currently playing audio
             if (sound) {
                 await sound.unloadAsync();
             }
@@ -187,7 +225,6 @@ const Record: React.FC = () => {
             setSound(newSound);
             setIsPlaying(true);
 
-            // Listen for playback status
             newSound.setOnPlaybackStatusUpdate((status) => {
                 if (status && 'didJustFinish' in status && status.didJustFinish) {
                     setIsPlaying(false);
@@ -228,6 +265,20 @@ const Record: React.FC = () => {
                 <Button title="Add Note" onPress={addNote} disabled={!isRecording} />
             </View>
 
+            {isRecording && currentNotes.length > 0 && (
+                <View style={styles.currentRecordingNotes}>
+                    <Text style={styles.notesHeader}>Current Recording Notes:</Text>
+                    {currentNotes.map((note, index) => (
+                        <View key={index} style={styles.noteItem}>
+                            <Text style={styles.noteTimestamp}>
+                                {new Date(note.timestamp).toLocaleString()}
+                            </Text>
+                            <Text style={styles.noteText}>{note.note}</Text>
+                        </View>
+                    ))}
+                </View>
+            )}
+
             <FlatList
                 data={recordings}
                 keyExtractor={(item, index) => index.toString()}
@@ -241,14 +292,18 @@ const Record: React.FC = () => {
                             />
                         </View>
                         <Text style={styles.notesHeader}>Notes:</Text>
-                        {item.notes.map((note, index) => (
-                            <View key={index} style={styles.noteItem}>
-                                <Text style={styles.noteTimestamp}>
-                                    {new Date(note.timestamp).toLocaleString()}
-                                </Text>
-                                <Text style={styles.noteText}>{note.note}</Text>
-                            </View>
-                        ))}
+                        {item.notes && item.notes.length > 0 ? (
+                            item.notes.map((note, index) => (
+                                <View key={index} style={styles.noteItem}>
+                                    <Text style={styles.noteTimestamp}>
+                                        {new Date(note.timestamp).toLocaleString()}
+                                    </Text>
+                                    <Text style={styles.noteText}>{note.note}</Text>
+                                </View>
+                            ))
+                        ) : (
+                            <Text>No notes for this recording</Text>
+                        )}
                     </View>
                 )}
             />
@@ -302,6 +357,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'flex-start',
         marginVertical: 8,
+    },
+    currentRecordingNotes: {
+        marginBottom: 16,
     },
 });
 

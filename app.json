@@ -6,13 +6,25 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "permissions": [
+      "READ_EXTERNAL_STORAGE",
+      "WRITE_EXTERNAL_STORAGE"
+    ],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "plugins": [
+      [
+        "expo-file-system",
+        {
+          "enableCaching": true
+        }
+      ]
+    ],
     "ios": {
-      "supportsTablet": true
+    "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
