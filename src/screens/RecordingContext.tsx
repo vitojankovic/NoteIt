@@ -7,6 +7,7 @@ interface Note {
 }
 
 interface RecordingMetadata {
+    name: string;
     notes: Note[];
     audioPath: string;
 }
@@ -14,6 +15,7 @@ interface RecordingMetadata {
 interface RecordingContextType {
     recordings: RecordingMetadata[];
     loadRecordings: () => Promise<void>;
+    deleteRecording: (audioPath: string) => Promise<void>
 }
 
 const RecordingContext = createContext<RecordingContextType | undefined>(undefined);
@@ -81,12 +83,58 @@ export const RecordingProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 };
 
+
+    const addRecording = async (newRecording: RecordingMetadata) => {
+        try{
+            const {name, notes, audioPath} = newRecording
+            
+            const dirPath = `${FileSystem.documentDirectory}recording_${newRecording.name}_${Date.now()}`;
+
+            await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
+
+            const metadataPath = `${dirPath}/metadata.json`;
+            await FileSystem.writeAsStringAsync(metadataPath, JSON.stringify(newRecording));
+
+
+            await FileSystem.writeAsStringAsync(audioPath, newRecording.audioBase64, {
+                encoding: FileSystem.EncodingType.Base64,
+            });
+    
+            // Update the state with the new recording
+            setRecordings(prevRecordings => [...prevRecordings, newRecording]);
+            
+            console.log(`Successfully added recording: ${name}`);
+            
+        } catch(err){
+            console.log("Error adding recording: ", err)
+        }
+    }
+
+    const deleteRecording = async (audioPath: string) => {
+        try {
+            // Find the directory path from the audio path
+            const dirPath = audioPath.substring(0, audioPath.lastIndexOf('/'));
+            
+            // Delete the directory and its contents
+            await FileSystem.deleteAsync(dirPath, { idempotent: true });
+            
+            // Update the state to remove the deleted recording
+            setRecordings(prevRecordings => 
+                prevRecordings.filter(recording => recording.audioPath !== audioPath)
+            );
+
+            console.log(`Successfully deleted recording at ${audioPath}`);
+        } catch (error) {
+            console.error('Error deleting recording:', error);
+        }
+    };
+
     useEffect(() => {
         loadRecordings();
     }, []);
 
     return (
-        <RecordingContext.Provider value={{ recordings, loadRecordings }}>
+        <RecordingContext.Provider value={{ recordings, loadRecordings, deleteRecording }}>
             {children}
         </RecordingContext.Provider>
     );

@@ -4,13 +4,15 @@ import { Audio } from 'expo-av';
 import { useRecordingContext, RecordingMetadata } from './RecordingContext';
 
 const Library: React.FC = () => {
-    const { recordings } = useRecordingContext();
+    const { recordings, deleteRecording } = useRecordingContext();
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const [playingPath, setPlayingPath] = useState<string | null>(null);
 
+
     useEffect(() => {
         console.log('Recordings in Library:', recordings);
+        console.error(recordings)
     }, [recordings]);
 
     useEffect(() => {
@@ -62,7 +64,7 @@ const Library: React.FC = () => {
         console.log('Rendering item:', item);
         return (
             <View style={styles.recordingItem}>
-                <Text style={styles.recordingPath}>Recording: {item.audioPath}</Text>
+                <Text style={styles.recordingPath}>Recording: {item.name}</Text>
                 <View style={styles.playbackControls}>
                     <Button
                         title={playingPath === item.audioPath ? "Stop" : "Play"}
@@ -72,12 +74,17 @@ const Library: React.FC = () => {
                                 : playRecording(item.audioPath)
                         }
                     />
+                    <Button
+                        title="Delete"
+                        onPress={() => deleteRecording(item.audioPath)}
+                        color="red"
+                    />
                 </View>
                 <Text style={styles.notesHeader}>Notes:</Text>
                 {item.notes.map((note) => (
                     <View key={note.timestamp} style={styles.noteItem}>
                         <Text style={styles.noteTimestamp}>
-                            {new Date(note.timestamp).toLocaleString()}
+                            {note.timestamp}
                         </Text>
                         <Text style={styles.noteText}>{note.note}</Text>
                     </View>

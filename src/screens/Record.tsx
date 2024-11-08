@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Button, TextInput, StyleSheet, FlatList, Text } from 'react-native';
+import { View, Button, TextInput, StyleSheet, FlatList, Text, Modal } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 
 interface Note {
-    timestamp: string;
+    timestamp: number;
     note: string;
 }
 
 interface RecordingMetadata {
+    name: string,
     notes: Note[];
     audioPath: string;
 }
@@ -23,6 +24,9 @@ const Record: React.FC = () => {
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const [currentRecordingMetadata, setCurrentRecordingMetadata] = useState<RecordingMetadata | null>(null);
     const [currentNotes, setCurrentNotes] = useState<Note[]>([]);
+    const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+    const [recordingName, setRecordingName] = useState<string>('');
+    const [recordingUri, setRecordingUri] = useState<string | null>(null);
 
     useEffect(() => {
         loadRecordings();
@@ -66,46 +70,37 @@ const Record: React.FC = () => {
         }
     };
 
-    const saveRecording = async (uri: string) => {
+    const saveRecording = async (uri: string, name: string) => {
         const timestamp = new Date().toISOString();
         const dirName = `recording_${timestamp.replace(/[:.]/g, '-')}`;
         const dirPath = `${FileSystem.documentDirectory}${dirName}`;
 
         try {
-            console.log('Creating directory at:', dirPath);
             await FileSystem.makeDirectoryAsync(dirPath, { intermediates: true });
 
             const audioPath = `${dirPath}/audio.mp3`;
-            console.log('Moving audio file from:', uri);
-            console.log('Moving audio file to:', audioPath);
-            
             await FileSystem.moveAsync({
                 from: uri,
                 to: audioPath,
             });
 
             const metadata: RecordingMetadata = {
+                name,
                 notes: currentRecordingMetadata?.notes || [],
                 audioPath: audioPath,
             };
 
             const metadataPath = `${dirPath}/metadata.json`;
-            console.log('Saving metadata to:', metadataPath);
-            console.log('Metadata content:', JSON.stringify(metadata, null, 2));
-            
             await FileSystem.writeAsStringAsync(
-                metadataPath, 
+                metadataPath,
                 JSON.stringify(metadata, null, 2)
             );
 
             setRecordings(prev => [...prev, metadata]);
-            console.log('Recording saved successfully with notes');
-            
             setCurrentRecordingMetadata(null);
             setCurrentNotes([]);
         } catch (error) {
             console.error('Error saving recording:', error);
-            console.error('Error details:', JSON.stringify(error, null, 2));
         }
     };
 
@@ -162,17 +157,41 @@ const Record: React.FC = () => {
             setRecording(null);
             setIsPaused(false);
             if (uri) {
-                await saveRecording(uri);
+                setRecordingUri(uri);
+                setIsModalVisible(true);
+                setRecordingName('');
             }
         } catch (error) {
             console.error('Error stopping recording:', error);
         }
     };
 
+    const handleSaveRecording = async () => {
+        if (!recordingName.trim()) {
+            console.error('Recording name cannot be empty');
+            return;
+        }
+
+        if (recordingUri) {
+            await saveRecording(recordingUri, recordingName.trim());
+            setIsModalVisible(false);
+            setRecordingUri(null);
+        } else {
+            console.error('No recording URI available');
+        }
+    };
+
     const addNote = async () => {
-        if (!note.trim() || !isRecording) return;
+        
+        if (!note.trim() || !isRecording || !recording ) return;
+        const status = await recording.getStatusAsync()
+
+        let timestamp: number = 0;
+
+        if(status && status.isRecording){
+            timestamp = status.durationMillis ?? 0;
+        }
     
-        const timestamp = new Date().toISOString();
         const newNote: Note = {
             timestamp,
             note: note.trim(),
@@ -264,6 +283,25 @@ const Record: React.FC = () => {
                 />
                 <Button title="Add Note" onPress={addNote} disabled={!isRecording} />
             </View>
+            <Modal
+                visible={isModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setIsModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <Text>Enter Recording Name:</Text>
+                        <TextInput
+                            style={styles.modalInput}
+                            placeholder="Recording name"
+                            value={recordingName}
+                            onChangeText={setRecordingName}
+                        />
+                        <Button title="Save" onPress={handleSaveRecording} />
+                    </View>
+                </View>
+            </Modal>
 
             {isRecording && currentNotes.length > 0 && (
                 <View style={styles.currentRecordingNotes}>
@@ -290,6 +328,11 @@ const Record: React.FC = () => {
                                 title={isPlaying ? "Stop" : "Play"}
                                 onPress={() => isPlaying ? stopPlayback() : playRecording(item.audioPath)}
                             />
+                            <Button
+                                title="Delete"
+                                onPress={() => deleteRecording(item.audioPath)}
+                                color="red"
+                            />
                         </View>
                         <Text style={styles.notesHeader}>Notes:</Text>
                         {item.notes && item.notes.length > 0 ? (
@@ -312,6 +355,26 @@ const Record: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContainer: {
+        width: '80%',
+        padding: 16,
+        backgroundColor: 'white',
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    modalInput: {
+        width: '100%',
+        padding: 8,
+        borderWidth: 1,
+        marginTop: 10,
+        marginBottom: 20,
+    },
     container: {
         flex: 1,
         padding: 16,
