@@ -6,11 +6,21 @@ import Home from './src/screens/Home';
 import Library from './src/screens/Library';
 import Record from './src/screens/Record';
 import Export from './src/screens/Export';
-import './global.css';
+import { useFonts, WorkSans_700Bold } from '@expo-google-fonts/work-sans';  // Use the 700 weight
+import AppLoading from 'expo-app-loading';
+import './global.css'
 
 const Tab = createBottomTabNavigator();
 
 const App: React.FC = () => {
+    const [fontsLoaded] = useFonts({
+        WorkSans: WorkSans_700Bold,  // Load Work Sans 700
+    });
+
+    if (!fontsLoaded) {
+        return <AppLoading />;
+    }
+
     return (
         <RecordingProvider>
             <NavigationContainer>

@@ -78,44 +78,23 @@ export default function ExportImport() {
 
   const handleImportRecording = async () => {
     try {
-        // Pick the JSON file containing the recording metadata
         const result = await DocumentPicker.getDocumentAsync({ type: 'application/json' });
-
-        // Ensure the URI exists
-        if (result.uri) {
-            const fileUri = result.uri;
-            console.log('Picked file URI:', fileUri);
-
-            // Ensure the file exists before reading
-            const fileExists = await FileSystem.getInfoAsync(fileUri);
-            if (!fileExists.exists) {
-                Alert.alert('Error', 'The selected file does not exist.');
-                return;
-            }
-
-            // Read the contents of the file
+        if (result.assets && result.assets.length > 0) {
+            const fileUri = result.assets[0].uri;
             const fileContents = await FileSystem.readAsStringAsync(fileUri);
             const importedData = JSON.parse(fileContents);
 
-            // Decode audio and save to file system
-            const audioPath = `${FileSystem.documentDirectory}${importedData.name}_${Date.now()}.mp3`;
-            await FileSystem.writeAsStringAsync(audioPath, importedData.audioBase64, {
-                encoding: FileSystem.EncodingType.Base64,
-            });
-
-            // Prepare the new recording data
-            const newRecording = {
-                ...importedData,
-                audioPath,  // Save the decoded audio file's path
-                audioBase64: undefined,  // Remove base64 from the final object
+            // Create a new recording object
+            const newRecording: RecordingMetadata = {
+                name: importedData.name,
+                notes: importedData.notes,
+                audioPath: importedData.audioBase64 // This will be handled in addRecording
             };
 
-            // Add the new recording to context and save it
-            await addRecording(newRecording);  // Use the addRecording function here
+            // Add the new recording
+            await addRecording(newRecording);
             
             Alert.alert('Success', 'Recording imported successfully!');
-        } else {
-            Alert.alert('Error', 'No file selected or import was canceled.');
         }
     } catch (error) {
         console.log("Import error:", error);

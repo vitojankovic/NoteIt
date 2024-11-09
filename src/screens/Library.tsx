@@ -1,151 +1,124 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, Button, StyleSheet } from 'react-native';
-import { Audio } from 'expo-av';
-import { useRecordingContext, RecordingMetadata } from './RecordingContext';
+'use client'
 
-const Library: React.FC = () => {
-    const { recordings, deleteRecording } = useRecordingContext();
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState<boolean>(false);
-    const [playingPath, setPlayingPath] = useState<string | null>(null);
+import React, { useState, useEffect } from 'react'
+import { View, Text, FlatList, TouchableOpacity, TextInput } from 'react-native'
+import { Audio } from 'expo-av'
+import { useRecordingContext, RecordingMetadata } from './RecordingContext'
+import { Ionicons } from '@expo/vector-icons'
 
+export default function Library() {
+  const { recordings, deleteRecording } = useRecordingContext()
+  const [sound, setSound] = useState<Audio.Sound | null>(null)
+  const [playingPath, setPlayingPath] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
-    useEffect(() => {
-        console.log('Recordings in Library:', recordings);
-        console.error(recordings)
-    }, [recordings]);
-
-    useEffect(() => {
-        return sound
-            ? () => {
-                  sound.unloadAsync();
-              }
-            : undefined;
-    }, [sound]);
-
-    const playRecording = async (audioPath: string) => {
-        try {
-            if (sound) {
-                await sound.unloadAsync();
-            }
-
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: audioPath },
-                { shouldPlay: true }
-            );
-            setSound(newSound);
-            setIsPlaying(true);
-            setPlayingPath(audioPath);
-
-            newSound.setOnPlaybackStatusUpdate((status) => {
-                if (status && 'didJustFinish' in status && status.didJustFinish) {
-                    setIsPlaying(false);
-                    setPlayingPath(null);
-                }
-            });
-
-            await newSound.playAsync();
-        } catch (error) {
-            console.error('Error playing recording:', error);
+  useEffect(() => {
+    return sound
+      ? () => {
+          sound.unloadAsync()
         }
-    };
+      : undefined
+  }, [sound])
 
-    const stopPlayback = async () => {
-        if (sound) {
-            await sound.stopAsync();
-            await sound.unloadAsync();
-            setSound(null);
-            setIsPlaying(false);
-            setPlayingPath(null);
+  const playRecording = async (audioPath: string) => {
+    try {
+      if (sound) {
+        await sound.unloadAsync()
+      }
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: audioPath },
+        { shouldPlay: true }
+      )
+      setSound(newSound)
+      setPlayingPath(audioPath)
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status && 'didJustFinish' in status && status.didJustFinish) {
+          setPlayingPath(null)
         }
-    };
+      })
 
-    const renderItem = ({ item }: { item: RecordingMetadata }) => {
-        console.log('Rendering item:', item);
-        return (
-            <View style={styles.recordingItem}>
-                <Text style={styles.recordingPath}>Recording: {item.name}</Text>
-                <View style={styles.playbackControls}>
-                    <Button
-                        title={playingPath === item.audioPath ? "Stop" : "Play"}
-                        onPress={() => 
-                            playingPath === item.audioPath 
-                                ? stopPlayback() 
-                                : playRecording(item.audioPath)
-                        }
-                    />
-                    <Button
-                        title="Delete"
-                        onPress={() => deleteRecording(item.audioPath)}
-                        color="red"
-                    />
-                </View>
-                <Text style={styles.notesHeader}>Notes:</Text>
-                {item.notes.map((note) => (
-                    <View key={note.timestamp} style={styles.noteItem}>
-                        <Text style={styles.noteTimestamp}>
-                            {note.timestamp}
-                        </Text>
-                        <Text style={styles.noteText}>{note.note}</Text>
-                    </View>
-                ))}
-            </View>
-        );
-    };
+      await newSound.playAsync()
+    } catch (error) {
+      console.error('Error playing recording:', error)
+    }
+  }
 
-    console.log('Library render, recordings length:', recordings.length);
+  const stopPlayback = async () => {
+    if (sound) {
+      await sound.stopAsync()
+      await sound.unloadAsync()
+      setSound(null)
+      setPlayingPath(null)
+    }
+  }
 
-    return (
-        <View style={styles.container}>
-            {recordings.length === 0 ? (
-                <Text>No recordings found</Text>
-            ) : (
-                <FlatList
-                    data={recordings}
-                    keyExtractor={(item) => item.audioPath}
-                    renderItem={renderItem}
-                />
-            )}
-        </View>
-    );
-};
+  const filteredRecordings = recordings.filter((recording) => {
+    if (typeof recording.name === 'string') {
+      return recording.name.toLowerCase().includes(searchQuery.toLowerCase())
+    }
+    console.warn(`Recording name is not a string: ${JSON.stringify(recording)}`)
+    return false
+  })
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        padding: 16,
-    },
-    recordingItem: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 8,
-        padding: 12,
-        marginVertical: 8,
-    },
-    recordingPath: {
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    playbackControls: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        marginVertical: 8,
-    },
-    notesHeader: {
-        fontWeight: 'bold',
-        marginVertical: 4,
-    },
-    noteItem: {
-        marginLeft: 8,
-        marginVertical: 4,
-    },
-    noteTimestamp: {
-        fontSize: 12,
-        color: '#666',
-    },
-    noteText: {
-        marginTop: 2,
-    },
-});
+  const renderItem = ({ item }: { item: RecordingMetadata }) => (
+    <View className="bg-white rounded-lg shadow-md p-4 mb-4">
+      <Text className="font-sans text-lg font-bold text-[#8BB552] mb-2">
+        {typeof item.name === 'string' ? item.name : 'Unnamed Recording'}
+      </Text>
+      <View className="flex-row justify-start items-center mb-3">
+        <TouchableOpacity
+          onPress={() => playingPath === item.audioPath ? stopPlayback() : playRecording(item.audioPath)}
+          className="bg-[#8BB552] rounded-full p-2 mr-2"
+        >
+          <Ionicons 
+            name={playingPath === item.audioPath ? "stop" : "play"} 
+            size={24} 
+            color="white" 
+          />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => deleteRecording(item.audioPath)}
+          className="bg-red-500 rounded-full p-2"
+        >
+          <Ionicons name="trash-outline" size={24} color="white" />
+        </TouchableOpacity>
+      </View>
+      <Text className="font-sans font-bold text-[#A8D867] mb-1">Notes:</Text>
+      {item.notes && Array.isArray(item.notes) ? (
+        item.notes.map((note, index) => (
+          <View key={note.timestamp || index} className="ml-2 mb-1">
+            <Text className="font-sans text-xs text-gray-500">{note.timestamp || 'No timestamp'}</Text>
+            <Text className="font-sans text-sm">{note.note || 'No note'}</Text>
+          </View>
+        ))
+      ) : (
+        <Text className="font-sans text-sm text-gray-500">No notes available</Text>
+      )}
+    </View>
+  )
 
-export default Library;
+  return (
+    <View className="flex-1 bg-[#FAFBF8] p-4">
+      <View className="flex-row items-center bg-white rounded-full shadow-sm mb-4 px-4 py-2">
+        <Ionicons name="search" size={20} color="#8BB552" style={{ marginRight: 8 }} />
+        <TextInput
+          className="font-sans flex-1 text-[#8BB552]"
+          placeholder="Search recordings..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+      {filteredRecordings.length === 0 ? (
+        <Text className="font-sans text-center text-gray-500">No recordings found</Text>
+      ) : (
+        <FlatList
+          data={filteredRecordings}
+          keyExtractor={(item) => item.audioPath}
+          renderItem={renderItem}
+        />
+      )}
+    </View>
+  )
+}
