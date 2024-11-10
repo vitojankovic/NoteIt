@@ -1,47 +1,101 @@
-'use client'
-
-import React, { useState, useEffect } from 'react'
-import { View, Text, FlatList, TouchableOpacity, TextInput } from 'react-native'
+import React, { useState, useEffect, useRef } from 'react'
+import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, Animated } from 'react-native'
 import { Audio } from 'expo-av'
 import { useRecordingContext, RecordingMetadata } from './RecordingContext'
 import { Ionicons } from '@expo/vector-icons'
+import { Gesture, GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 
 export default function Library() {
   const { recordings, deleteRecording } = useRecordingContext()
   const [sound, setSound] = useState<Audio.Sound | null>(null)
-  const [playingPath, setPlayingPath] = useState<string | null>(null)
+  const [playingRecording, setPlayingRecording] = useState<RecordingMetadata | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentPosition, setCurrentPosition] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [currentNote, setCurrentNote] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
+  const positionRef = useRef(currentPosition)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+
   useEffect(() => {
-    return sound
-      ? () => {
-          sound.unloadAsync()
-        }
-      : undefined
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      if (sound) {
+        sound.unloadAsync()
+      }
+    }
   }, [sound])
 
-  const playRecording = async (audioPath: string) => {
+  useEffect(() => {
+    if (playingRecording && playingRecording.notes) {
+      const currentNoteObj = playingRecording.notes.reduce((prev, curr) => {
+        if (curr.timestamp <= positionRef.current && (!prev || curr.timestamp > prev.timestamp)) {
+          return curr
+        }
+        return prev
+      }, null)
+      setCurrentNote(currentNoteObj ? currentNoteObj.note : '')
+    }
+  }, [currentPosition, playingRecording])
+
+
+  const updatePosition = () => {
+    if (sound) {
+      sound.getStatusAsync().then(status => {
+        if (status.isLoaded) {
+          setCurrentPosition(status.positionMillis)
+          positionRef.current = status.positionMillis
+        }
+      })
+    }
+  }
+
+  const playRecording = async (recording: RecordingMetadata) => {
     try {
       if (sound) {
         await sound.unloadAsync()
       }
 
       const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: audioPath },
-        { shouldPlay: true }
+        { uri: recording.audioPath },
+        { shouldPlay: true },
+        onPlaybackStatusUpdate
       )
       setSound(newSound)
-      setPlayingPath(audioPath)
+      setPlayingRecording(recording)
+      setIsPlaying(true)
 
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status && 'didJustFinish' in status && status.didJustFinish) {
-          setPlayingPath(null)
-        }
-      })
+      const status = await newSound.getStatusAsync()
+      if (status.isLoaded) {
+        setDuration(status.durationMillis || 0)
+      }
 
       await newSound.playAsync()
+
+      // Start interval to update position frequently
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      intervalRef.current = setInterval(updatePosition, 100) // Update every 100ms
     } catch (error) {
       console.error('Error playing recording:', error)
+    }
+  }
+
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      setIsPlaying(status.isPlaying)
+      if (status.didJustFinish) {
+        setPlayingRecording(null)
+        setCurrentPosition(0)
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+        }
+      }
     }
   }
 
@@ -50,61 +104,151 @@ export default function Library() {
       await sound.stopAsync()
       await sound.unloadAsync()
       setSound(null)
-      setPlayingPath(null)
+      setPlayingRecording(null)
+      setCurrentPosition(0)
+      setIsPlaying(false)
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
     }
   }
 
-  const filteredRecordings = recordings.filter((recording) => {
-    if (typeof recording.name === 'string') {
-      return recording.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const togglePlayPause = async () => {
+    if (sound) {
+      if (isPlaying) {
+        await sound.pauseAsync()
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+        }
+      } else {
+        await sound.playAsync()
+        intervalRef.current = setInterval(updatePosition, 100)
+      }
+      setIsPlaying(!isPlaying)
     }
-    console.warn(`Recording name is not a string: ${JSON.stringify(recording)}`)
-    return false
-  })
+  }
 
-  const renderItem = ({ item }: { item: RecordingMetadata }) => (
-    <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-      <Text className="font-sans text-lg font-bold text-[#8BB552] mb-2">
-        {typeof item.name === 'string' ? item.name : 'Unnamed Recording'}
-      </Text>
-      <View className="flex-row justify-start items-center mb-3">
-        <TouchableOpacity
-          onPress={() => playingPath === item.audioPath ? stopPlayback() : playRecording(item.audioPath)}
-          className="bg-[#8BB552] rounded-full p-2 mr-2"
-        >
-          <Ionicons 
-            name={playingPath === item.audioPath ? "stop" : "play"} 
-            size={24} 
-            color="white" 
-          />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => deleteRecording(item.audioPath)}
-          className="bg-red-500 rounded-full p-2"
-        >
-          <Ionicons name="trash-outline" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-      <Text className="font-sans font-bold text-[#A8D867] mb-1">Notes:</Text>
-      {item.notes && Array.isArray(item.notes) ? (
-        item.notes.map((note, index) => (
-          <View key={note.timestamp || index} className="ml-2 mb-1">
-            <Text className="font-sans text-xs text-gray-500">{note.timestamp || 'No timestamp'}</Text>
-            <Text className="font-sans text-sm">{note.note || 'No note'}</Text>
-          </View>
-        ))
-      ) : (
-        <Text className="font-sans text-sm text-gray-500">No notes available</Text>
-      )}
-    </View>
+  const seekTo = async (position: number) => {
+    if (sound) {
+      await sound.setPositionAsync(position)
+      setCurrentPosition(position)
+      positionRef.current = position
+    }
+  }
+
+  const filteredRecordings = recordings.filter((recording) =>
+    recording.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+
+  const formatTime = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
+
+
+  const renderWaveform = (notes: { timestamp: number, importance: string }[]) => {
+    const maxTimestamp = Math.max(...notes.map(note => note.timestamp)); // Get the max timestamp (duration)
+  
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', width: '100%', height: 80 }}>
+        {/* Static Line */}
+        <View style={{
+          position: 'absolute',
+          top: 67, // Make the baseline sit higher in the view
+          left: 0,
+          right: 0,
+          height: 5,
+          backgroundColor: '#8BB552', // Line color
+        }} />
+  
+        {/* Render Bumps */}
+        {notes.map((note, index) => {
+          // Calculate position based on the timestamp and the width of the container
+          const position = (note.timestamp / maxTimestamp) * 300; // 300px is the width of your container
+          const bumpHeight = note.importance === 'high' ? 40 : 20; // Larger bumps for higher importance notes
+  
+          return (
+            <View
+              key={index}
+              style={{
+                position: 'absolute',
+                left: position, // Position it based on the timestamp
+                bottom: 0, // Position the bump above the baseline
+                width: 6, // Wider bump for more pronounced effect
+                height: bumpHeight, // Increased height for more dramatic effect
+                backgroundColor: '#8BB552', // Color of the bump
+              }}
+            />
+          );
+        })}
+      </View>
+    );
+  }
+  
+  
+
+  
+  const renderItem = ({ item }: { item: RecordingMetadata }) => {
+    return (
+      <GestureHandlerRootView>
+      <Swipeable
+        renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, item)}
+        rightThreshold={-100}
+      >
+        <TouchableOpacity
+          onPress={() => playRecording(item)}
+          className="bg-white rounded-lg shadow-md p-4 mb-4"
+        >
+          <Text className="font-sans text-lg font-bold text-primary mb-2">{item.name}</Text>
+          
+          {/* Render waveform using notes */}
+          {renderWaveform(item.notes || [])}
+        </TouchableOpacity>
+      </Swipeable>
+      </GestureHandlerRootView>
+    )
+  }
+
+
+  const renderRightActions = (progress: Animated.AnimatedInterpolation, dragX: Animated.AnimatedInterpolation, item: RecordingMetadata) => {
+    const trans = dragX.interpolate({
+      inputRange: [-100, 0],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    })
+    return (
+      <TouchableOpacity
+        style={{
+          backgroundColor: 'red',
+          justifyContent: 'center',
+          alignItems: 'flex-end',
+          padding: 20,
+          width: 1000,
+        }}
+        onPress={() => deleteRecording(item.audioPath)}
+      >
+        <Animated.Text
+          style={{
+            color: 'white',
+            fontWeight: '600',
+            transform: [{ translateX: trans }],
+          }}
+        >
+          Delete
+        </Animated.Text>
+      </TouchableOpacity>
+    )
+  }
+
   return (
-    <View className="flex-1 bg-[#FAFBF8] p-4">
+    <View className="flex-1 bg-background p-4 pt-[50px]">
       <View className="flex-row items-center bg-white rounded-full shadow-sm mb-4 px-4 py-2">
         <Ionicons name="search" size={20} color="#8BB552" style={{ marginRight: 8 }} />
         <TextInput
-          className="font-sans flex-1 text-[#8BB552]"
+          className="font-sans flex-1 text-primary"
           placeholder="Search recordings..."
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -119,6 +263,59 @@ export default function Library() {
           renderItem={renderItem}
         />
       )}
+      <Modal visible={!!playingRecording} animationType="slide">
+        <View className="flex-1 bg-[#FAFBF8] p-4">
+          <View className="flex-1 justify-center items-center">
+            <Text className="font-sans text-2xl font-bold text-primary mb-4">
+              {playingRecording?.name}
+            </Text>
+            <Text className="font-sans text-lg text-center mb-8">{currentNote}</Text>
+          </View>
+          <View className="mb-8">
+            <View className="h-4 bg-gray-200 rounded-full">
+              <View
+                className="h-full bg-primary rounded-full"
+                style={{ width: `${(currentPosition / duration) * 100}%` }}
+              />
+            </View>
+            <View className="flex-row justify-between mt-2">
+              <Text className="font-sans text-sm text-gray-500">
+                {formatTime(currentPosition)}
+              </Text>
+              <Text className="font-sans text-sm text-gray-500">
+                {formatTime(duration)}
+              </Text>
+            </View>
+          </View>
+          <View className="flex-row justify-center items-center mb-8">
+            <TouchableOpacity
+              onPress={() => seekTo(Math.max(0, currentPosition - 10000))}
+              className="mx-4"
+            >
+              <Ionicons name="play-back" size={40} color="#8BB552" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={togglePlayPause} className="mx-4">
+              <Ionicons
+                name={isPlaying ? "pause" : "play"}
+                size={60}
+                color="#8BB552"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => seekTo(Math.min(duration, currentPosition + 10000))}
+              className="mx-4"
+            >
+              <Ionicons name="play-forward" size={40} color="#8BB552" />
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            onPress={stopPlayback}
+            className="bg-red-500 rounded-full p-4 items-center"
+          >
+            <Text className="font-sans text-white font-bold">Close</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   )
 }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Button, TextInput, StyleSheet, FlatList, Text, Modal } from 'react-native';
+import { View, Button, TextInput, FlatList, Text, Modal, TouchableOpacity } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import { Ionicons } from '@expo/vector-icons'
 
 interface Note {
     timestamp: number;
@@ -20,55 +21,34 @@ const Record: React.FC = () => {
     const [isPaused, setIsPaused] = useState<boolean>(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [recordings, setRecordings] = useState<RecordingMetadata[]>([]);
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const [currentRecordingMetadata, setCurrentRecordingMetadata] = useState<RecordingMetadata | null>(null);
     const [currentNotes, setCurrentNotes] = useState<Note[]>([]);
     const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
     const [recordingName, setRecordingName] = useState<string>('');
     const [recordingUri, setRecordingUri] = useState<string | null>(null);
+    const [duration, setDuration] = useState<string>('0:00:00')
+    const [noteCount, setNoteCount] = useState<number>(0)
+    const [isAddNoteVisible, setIsAddNoteVisible] = useState(false)
+    const [isSaveModalVisible, setIsSaveModalVisible] = useState(false)
 
     useEffect(() => {
-        loadRecordings();
-    }, []);
-
-    useEffect(() => {
-        return sound
-            ? () => {
-                  sound.unloadAsync();
-              }
-            : undefined;
-    }, [sound]);
-
-    const loadRecordings = async () => {
-        try {
-            const documentDirectory = FileSystem.documentDirectory;
-            if (!documentDirectory) {
-                console.error('Document directory is not available');
-                return;
+        let interval: NodeJS.Timeout
+        if (isRecording) {
+          interval = setInterval(async () => {
+            if (recording) {
+              const status = await recording.getStatusAsync()
+              const milliseconds = status.durationMillis || 0
+              const seconds = Math.floor((milliseconds / 1000) % 60)
+              const minutes = Math.floor((milliseconds / (1000 * 60)) % 60)
+              const hours = Math.floor(milliseconds / (1000 * 60 * 60))
+              setDuration(`${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
             }
-
-            const dirs = await FileSystem.readDirectoryAsync(documentDirectory);
-            const loadedRecordings: (RecordingMetadata | null)[] = await Promise.all(
-                dirs.map(async (dir) => {
-                    const metadataPath = `${documentDirectory}${dir}/metadata.json`;
-                    const exists = await FileSystem.getInfoAsync(metadataPath);
-                    if (exists.exists) {
-                        try {
-                            const metadata = await FileSystem.readAsStringAsync(metadataPath);
-                            return JSON.parse(metadata) as RecordingMetadata;
-                        } catch (error) {
-                            console.error(`Failed to read metadata from ${metadataPath}:`, error);
-                        }
-                    }
-                    return null;
-                })
-            );
-            setRecordings(loadedRecordings.filter(Boolean) as RecordingMetadata[]);
-        } catch (error) {
-            console.error('Failed to load recordings:', error);
+          }, 1000)
         }
-    };
+        return () => clearInterval(interval)
+      }, [isRecording, recording])
+    
+
 
     const saveRecording = async (uri: string, name: string) => {
         const timestamp = new Date().toISOString();
@@ -106,31 +86,40 @@ const Record: React.FC = () => {
 
     const startRecording = async () => {
         try {
-            const { status } = await Audio.requestPermissionsAsync();
-            if (status !== 'granted') {
-                console.error('Permission to access microphone is required!');
-                return;
-            }
-
-            if (recording) {
-                console.warn('Recording is already in progress or paused.');
-                return;
-            }
-
-            const recordingInstance = new Audio.Recording();
-            await recordingInstance.prepareToRecordAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
-            await recordingInstance.startAsync();
-            setRecording(recordingInstance);
-            setIsRecording(true);
-            setIsPaused(false);
-            
-            setCurrentRecordingMetadata(null);
-            setCurrentNotes([]);
+          const { status } = await Audio.requestPermissionsAsync();
+          if (status !== 'granted') {
+            console.error('Permission to access microphone is required!');
+            return;
+          }
+    
+          // Check if there's an existing recording and unload it
+          if (recording) {
+            console.log('Unloading existing recording before starting a new one');
+            await recording.unloadAsync();
+            setRecording(null);
+          }
+    
+          console.log('Starting new recording');
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+          });
+    
+          const { recording: newRecording } = await Audio.Recording.createAsync(
+            Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY
+          );
+    
+          setRecording(newRecording);
+          setIsRecording(true);
+          setIsPaused(false);
+          
+          setCurrentRecordingMetadata(null);
+          setCurrentNotes([]);
         } catch (error) {
-            console.error('Error starting recording:', error);
+          console.error('Error starting recording:', error);
         }
-    };
-
+      };
+      
     const toggleRecording = async () => {
         if (!recording) return;
 
@@ -158,7 +147,7 @@ const Record: React.FC = () => {
             setIsPaused(false);
             if (uri) {
                 setRecordingUri(uri);
-                setIsModalVisible(true);
+                setIsSaveModalVisible(true);
                 setRecordingName('');
             }
         } catch (error) {
@@ -225,205 +214,106 @@ const Record: React.FC = () => {
     
             // Clear the note input field
             setNote('');
+            setNoteCount(noteCount+1)
             console.log('Note added successfully');
         } catch (error) {
             console.error('Error adding note:', error);
         }
     };
     
-    const playRecording = async (audioPath: string) => {
-        try {
-            if (sound) {
-                await sound.unloadAsync();
-            }
-
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: audioPath },
-                { shouldPlay: true }
-            );
-            setSound(newSound);
-            setIsPlaying(true);
-
-            newSound.setOnPlaybackStatusUpdate((status) => {
-                if (status && 'didJustFinish' in status && status.didJustFinish) {
-                    setIsPlaying(false);
-                }
-            });
-
-            await newSound.playAsync();
-        } catch (error) {
-            console.error('Error playing recording:', error);
-        }
-    };
-
-    const stopPlayback = async () => {
-        if (sound) {
-            await sound.stopAsync();
-            await sound.unloadAsync();
-            setSound(null);
-            setIsPlaying(false);
-        }
-    };
 
     return (
-        <View style={styles.container}>
-            <Button title="Start Recording" onPress={startRecording} disabled={isRecording} />
-            <Button
-                title={isPaused ? "Resume Recording" : "Pause Recording"}
-                onPress={toggleRecording}
-                disabled={!isRecording}
-            />
-            <Button title="Stop Recording" onPress={stopRecording} disabled={!isRecording} />
-            <View style={styles.inputContainer}>
-                <TextInput
-                    placeholder="Add note..."
-                    value={note}
-                    onChangeText={setNote}
-                    style={styles.input}
-                />
-                <Button title="Add Note" onPress={addNote} disabled={!isRecording} />
+        <View className="flex-1 bg-[#111111] items-center justify-center">
+        {isRecording ? (
+          <View className="items-center">
+            <Text className="text-[#8BB552] text-6xl font-mono mb-12">{duration}</Text>
+            <Ionicons name="mic" size={120} color="#8BB552" />
+            <Text className="text-[#8BB552] text-2xl mt-12">{noteCount} notes added</Text>
+            <View className="flex-row mt-16 space-x-8">
+              <TouchableOpacity 
+                className="w-16 h-16 rounded-full border-2 border-[#8BB552] items-center justify-center"
+                onPress={() => toggleRecording()}>
+                <Ionicons name="pause" size={32} color="#8BB552" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                className="w-16 h-16 bg-white rounded-full items-center justify-center"
+                onPress={() => setIsAddNoteVisible(true)}>
+                <Ionicons name="pin" size={32} color="#8BB552" />
+              </TouchableOpacity>
+              <TouchableOpacity 
+                className="w-16 h-16 rounded-full border-2 border-[#8BB552] items-center justify-center"
+                onPress={stopRecording}>
+                <Ionicons name="stop" size={32} color="#8BB552" />
+              </TouchableOpacity>
             </View>
-            <Modal
-                visible={isModalVisible}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={() => setIsModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Text>Enter Recording Name:</Text>
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Recording name"
-                            value={recordingName}
-                            onChangeText={setRecordingName}
-                        />
-                        <Button title="Save" onPress={handleSaveRecording} />
-                    </View>
-                </View>
-            </Modal>
-
-            {isRecording && currentNotes.length > 0 && (
-                <View style={styles.currentRecordingNotes}>
-                    <Text style={styles.notesHeader}>Current Recording Notes:</Text>
-                    {currentNotes.map((note, index) => (
-                        <View key={index} style={styles.noteItem}>
-                            <Text style={styles.noteTimestamp}>
-                                {new Date(note.timestamp).toLocaleString()}
-                            </Text>
-                            <Text style={styles.noteText}>{note.note}</Text>
-                        </View>
-                    ))}
-                </View>
-            )}
-
-            <FlatList
-                data={recordings}
-                keyExtractor={(item, index) => index.toString()}
-                renderItem={({ item }) => (
-                    <View style={styles.recordingItem}>
-                        <Text style={styles.recordingPath}>Recording: {item.audioPath}</Text>
-                        <View style={styles.playbackControls}>
-                            <Button
-                                title={isPlaying ? "Stop" : "Play"}
-                                onPress={() => isPlaying ? stopPlayback() : playRecording(item.audioPath)}
-                            />
-                            <Button
-                                title="Delete"
-                                onPress={() => deleteRecording(item.audioPath)}
-                                color="red"
-                            />
-                        </View>
-                        <Text style={styles.notesHeader}>Notes:</Text>
-                        {item.notes && item.notes.length > 0 ? (
-                            item.notes.map((note, index) => (
-                                <View key={index} style={styles.noteItem}>
-                                    <Text style={styles.noteTimestamp}>
-                                        {new Date(note.timestamp).toLocaleString()}
-                                    </Text>
-                                    <Text style={styles.noteText}>{note.note}</Text>
-                                </View>
-                            ))
-                        ) : (
-                            <Text>No notes for this recording</Text>
-                        )}
-                    </View>
-                )}
-            />
-        </View>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={startRecording} className="items-center">
+            <Text className="text-[#8BB552] text-3xl mb-12">Start Recording</Text>
+            <Ionicons name="mic" size={120} color="#8BB552" />
+          </TouchableOpacity>
+        )}
+  
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={isAddNoteVisible}
+          onRequestClose={() => setIsAddNoteVisible(false)}>
+          <View className="flex-1 justify-center items-center bg-black/50">
+            <View className="bg-[#111111] p-6 rounded-2xl w-[80%] border border-[#8BB552]">
+              <Text className="text-[#8BB552] text-xl mb-4">Add Note</Text>
+              <TextInput
+                className="bg-white/10 text-white p-4 rounded-lg mb-4"
+                placeholder="Enter your note..."
+                placeholderTextColor="#666"
+                value={note}
+                onChangeText={setNote}
+                multiline
+              />
+              <View className="flex-row justify-end space-x-4">
+                <TouchableOpacity onPress={() => setIsAddNoteVisible(false)}>
+                  <Text className="text-[#8BB552]">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={addNote}>
+                  <Text className="text-[#8BB552] font-bold">Add</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+  
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={isSaveModalVisible}
+          onRequestClose={() => setIsSaveModalVisible(false)}>
+          <View className="flex-1 justify-center items-center bg-black/50">
+            <View className="bg-[#111111] p-6 rounded-2xl w-[80%] border border-[#8BB552]">
+              <Text className="text-[#8BB552] text-xl mb-4">Save Recording</Text>
+              <TextInput
+                className="bg-white/10 text-white p-4 rounded-lg mb-4"
+                placeholder="Enter recording name..."
+                placeholderTextColor="#666"
+                value={recordingName}
+                onChangeText={setRecordingName}
+              />
+              <View className="flex-row justify-end space-x-4">
+                <TouchableOpacity onPress={() => setIsSaveModalVisible(false)}>
+                  <Text className="text-[#8BB552]">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                  // Handle save logic here
+                  setIsSaveModalVisible(false)
+                  setRecordingName('')
+                }}>
+                  <Text className="text-[#8BB552] font-bold">Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
     );
 };
-
-const styles = StyleSheet.create({
-    modalOverlay: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    },
-    modalContainer: {
-        width: '80%',
-        padding: 16,
-        backgroundColor: 'white',
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    modalInput: {
-        width: '100%',
-        padding: 8,
-        borderWidth: 1,
-        marginTop: 10,
-        marginBottom: 20,
-    },
-    container: {
-        flex: 1,
-        padding: 16,
-    },
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    input: {
-        flex: 1,
-        borderWidth: 1,
-        padding: 8,
-        marginRight: 8,
-    },
-    recordingItem: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        borderRadius: 8,
-        padding: 12,
-        marginVertical: 8,
-    },
-    recordingPath: {
-        fontWeight: 'bold',
-        marginBottom: 8,
-    },
-    notesHeader: {
-        fontWeight: 'bold',
-        marginVertical: 4,
-    },
-    noteItem: {
-        marginLeft: 8,
-        marginVertical: 4,
-    },
-    noteTimestamp: {
-        fontSize: 12,
-        color: '#666',
-    },
-    noteText: {
-        marginTop: 2,
-    },
-    playbackControls: {
-        flexDirection: 'row',
-        justifyContent: 'flex-start',
-        marginVertical: 8,
-    },
-    currentRecordingNotes: {
-        marginBottom: 16,
-    },
-});
 
 export default Record;
