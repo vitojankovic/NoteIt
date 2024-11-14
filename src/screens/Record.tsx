@@ -233,7 +233,8 @@ const Record: React.FC = () => {
               <TouchableOpacity 
                 className="w-16 h-16 rounded-full border-2 border-[#8BB552] items-center justify-center"
                 onPress={() => toggleRecording()}>
-                <Ionicons name="pause" size={32} color="#8BB552" />
+                {isPaused ? <Ionicons name="caret-forward" size={32} color="#8BB552" /> : <Ionicons name="pause" size={32} color="#8BB552" />}
+                
               </TouchableOpacity>
               <TouchableOpacity 
                 className="w-16 h-16 bg-white rounded-full items-center justify-center"
@@ -305,6 +306,7 @@ const Record: React.FC = () => {
                   // Handle save logic here
                   setIsSaveModalVisible(false)
                   setRecordingName('')
+                  handleSaveRecording()
                 }}>
                   <Text className="text-[#8BB552] font-bold">Save</Text>
                 </TouchableOpacity>
