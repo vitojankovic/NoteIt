@@ -21,7 +21,8 @@
         {
           "enableCaching": true
         }
-      ]
+      ],
+      "expo-router"
     ],
     "ios": {
       "supportsTablet": true

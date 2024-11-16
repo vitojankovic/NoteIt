@@ -3,6 +3,7 @@ import { View, Button, TextInput, FlatList, Text, Modal, TouchableOpacity } from
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { Ionicons } from '@expo/vector-icons'
+import Animated, { withTiming, useSharedValue, useAnimatedStyle, withRepeat, Easing } from 'react-native-reanimated';
 
 interface Note {
     timestamp: number;
@@ -30,6 +31,23 @@ const Record: React.FC = () => {
     const [noteCount, setNoteCount] = useState<number>(0)
     const [isAddNoteVisible, setIsAddNoteVisible] = useState(false)
     const [isSaveModalVisible, setIsSaveModalVisible] = useState(false)
+
+
+    const pulse = useSharedValue(1);
+    const pulseStyle = useAnimatedStyle(() => {
+      return {
+        transform: [
+          {
+            scale: withRepeat(
+              withTiming(1.2, { duration: 1000, easing: Easing.ease }), // Expanding
+              -1, // Repeat infinitely
+              true // Alternate between expanding and contracting
+            ),
+          },
+        ],
+      };
+    });
+
 
     useEffect(() => {
         let interval: NodeJS.Timeout
@@ -226,32 +244,33 @@ const Record: React.FC = () => {
         <View className="flex-1 bg-[#111111] items-center justify-center">
         {isRecording ? (
           <View className="items-center">
-            <Text className="text-[#8BB552] text-6xl font-mono mb-12">{duration}</Text>
-            <Ionicons name="mic" size={120} color="#8BB552" />
-            <Text className="text-[#8BB552] text-2xl mt-12">{noteCount} notes added</Text>
+            <Text className="text-txtp text-7xl mb-12">{duration}</Text>
+            <Animated.View>
+              <Ionicons name="mic" size={200} color="#ffffff" style={pulseStyle} />
+            </Animated.View>
+            <Text className="text-txts text-4xl mt-12">{noteCount} notes added</Text>
             <View className="flex-row mt-16 space-x-8">
-              <TouchableOpacity 
-                className="w-16 h-16 rounded-full border-2 border-[#8BB552] items-center justify-center"
+              <TouchableOpacity
+                className="w-24 h-24 rounded-full bg-paper border-2 border items-center justify-center"
                 onPress={() => toggleRecording()}>
-                {isPaused ? <Ionicons name="caret-forward" size={32} color="#8BB552" /> : <Ionicons name="pause" size={32} color="#8BB552" />}
-                
+                {isPaused ? <Ionicons name="caret-forward" size={54} color="#ffffff" /> : <Ionicons name="pause" size={54} color="#ffffff" />}
               </TouchableOpacity>
               <TouchableOpacity 
-                className="w-16 h-16 bg-white rounded-full items-center justify-center"
+                className="w-24 h-24 bg-white rounded-full items-center justify-center mx-[10%]"
                 onPress={() => setIsAddNoteVisible(true)}>
-                <Ionicons name="pin" size={32} color="#8BB552" />
+                <Ionicons name="pin" size={54} color="#fffff" />
               </TouchableOpacity>
               <TouchableOpacity 
-                className="w-16 h-16 rounded-full border-2 border-[#8BB552] items-center justify-center"
+                className="w-24 h-24 rounded-full border-2 bg-paper items-center justify-center"
                 onPress={stopRecording}>
-                <Ionicons name="stop" size={32} color="#8BB552" />
+                <Ionicons name="stop" size={54} color="#f44336" />
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <TouchableOpacity onPress={startRecording} className="items-center">
-            <Text className="text-[#8BB552] text-3xl mb-12">Start Recording</Text>
-            <Ionicons name="mic" size={120} color="#8BB552" />
+            <Text className="text-txtp text-6xl mb-12">Start Recording</Text>
+            <Ionicons name="mic" size={240} color="#ffffff" />
           </TouchableOpacity>
         )}
   
@@ -260,23 +279,23 @@ const Record: React.FC = () => {
           transparent={true}
           visible={isAddNoteVisible}
           onRequestClose={() => setIsAddNoteVisible(false)}>
-          <View className="flex-1 justify-center items-center bg-black/50">
-            <View className="bg-[#111111] p-6 rounded-2xl w-[80%] border border-[#8BB552]">
-              <Text className="text-[#8BB552] text-xl mb-4">Add Note</Text>
+          <View className="flex-1 justify-center items-center bg-paper/50">
+            <View className="bg-background p-6 rounded-2xl w-[90%] border border-background">
+              <Text className="text-txtp text-4xl mb-4">Add Note</Text>
               <TextInput
-                className="bg-white/10 text-white p-4 rounded-lg mb-4"
+                className="bg-paper text-txts p-4 text-2xl rounded-lg mb-4 h-[100px]"
                 placeholder="Enter your note..."
-                placeholderTextColor="#666"
+                placeholderTextColor="rgba(255, 255, 255, 0.7)"
                 value={note}
                 onChangeText={setNote}
                 multiline
               />
-              <View className="flex-row justify-end space-x-4">
+              <View className="flex-row justify-between space-x-4">
                 <TouchableOpacity onPress={() => setIsAddNoteVisible(false)}>
-                  <Text className="text-[#8BB552]">Cancel</Text>
+                  <Text className="text-warning text-2xl pt-[10px]">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={addNote}>
-                  <Text className="text-[#8BB552] font-bold">Add</Text>
+                  <Text className="text-primary font-bold text-2xl pt-[10px]">Add</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -289,18 +308,18 @@ const Record: React.FC = () => {
           visible={isSaveModalVisible}
           onRequestClose={() => setIsSaveModalVisible(false)}>
           <View className="flex-1 justify-center items-center bg-black/50">
-            <View className="bg-[#111111] p-6 rounded-2xl w-[80%] border border-[#8BB552]">
-              <Text className="text-[#8BB552] text-xl mb-4">Save Recording</Text>
+            <View className="bg-background p-6 rounded-2xl w-[80%] border border-paper">
+              <Text className="text-txtp text-3xl mb-4">Save Recording</Text>
               <TextInput
-                className="bg-white/10 text-white p-4 rounded-lg mb-4"
+                className="bg-white/10 text-txts p-4 rounded-lg mb-4"
                 placeholder="Enter recording name..."
-                placeholderTextColor="#666"
+                placeholderTextColor="rgba(255, 255, 255, 0.7)"
                 value={recordingName}
                 onChangeText={setRecordingName}
               />
-              <View className="flex-row justify-end space-x-4">
+              <View className="flex-row justify-between space-x-4">
                 <TouchableOpacity onPress={() => setIsSaveModalVisible(false)}>
-                  <Text className="text-[#8BB552]">Cancel</Text>
+                  <Text className="text-warning text-2xl pt-2">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => {
                   // Handle save logic here
@@ -308,7 +327,7 @@ const Record: React.FC = () => {
                   setRecordingName('')
                   handleSaveRecording()
                 }}>
-                  <Text className="text-[#8BB552] font-bold">Save</Text>
+                  <Text className="text-primary font-bold text-2xl pt-2">Save</Text>
                 </TouchableOpacity>
               </View>
             </View>

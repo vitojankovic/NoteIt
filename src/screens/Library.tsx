@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, Animated } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, TextInput, Modal, Animated, ScrollView } from 'react-native'
 import { Audio } from 'expo-av'
 import { useRecordingContext, RecordingMetadata } from './RecordingContext'
 import { Ionicons } from '@expo/vector-icons'
@@ -157,11 +157,12 @@ export default function Library() {
         {/* Static Line */}
         <View style={{
           position: 'absolute',
-          top: 67, // Make the baseline sit higher in the view
           left: 0,
           right: 0,
           height: 5,
-          backgroundColor: '#8BB552', // Line color
+          bottom: 57,
+          backgroundColor: '#ffffff',
+          borderRadius: 60,
         }} />
   
         {/* Render Bumps */}
@@ -176,10 +177,10 @@ export default function Library() {
               style={{
                 position: 'absolute',
                 left: position, // Position it based on the timestamp
-                bottom: 0, // Position the bump above the baseline
+                bottom: 50, // Position the bump above the baseline
                 width: 6, // Wider bump for more pronounced effect
                 height: bumpHeight, // Increased height for more dramatic effect
-                backgroundColor: '#8BB552', // Color of the bump
+                backgroundColor: '#ffffff', // Color of the bump
               }}
             />
           );
@@ -200,9 +201,9 @@ export default function Library() {
       >
         <TouchableOpacity
           onPress={() => playRecording(item)}
-          className="bg-white rounded-lg shadow-md p-4 mb-4"
+          className="bg-paper rounded-lg p-4 mb-4 rounded-[40px] h-[100px] flex shadow-lg shadow"
         >
-          <Text className="font-sans text-lg font-bold text-primary mb-2">{item.name}</Text>
+          <Text className="text-lg font-bold text-txtp text-center">{item.name}</Text>
           
           {/* Render waveform using notes */}
           {renderWaveform(item.notes || [])}
@@ -245,11 +246,12 @@ export default function Library() {
 
   return (
     <View className="flex-1 bg-background p-4 pt-[50px]">
-      <View className="flex-row items-center bg-white rounded-full shadow-sm mb-4 px-4 py-2">
-        <Ionicons name="search" size={20} color="#8BB552" style={{ marginRight: 8 }} />
+      <View className="flex-row items-center bg-paper rounded-[24px] shadow-md mb-4 px-4 py-2">
+        <Ionicons name="search" size={20} color="#ffffff" style={{ marginRight: 8 }} />
         <TextInput
-          className="font-sans flex-1 text-primary"
+          className="font-sans flex-1 text-txtp"
           placeholder="Search recordings..."
+          placeholderTextColor={"rgba(255, 255, 255, 0.7)"}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
@@ -264,25 +266,25 @@ export default function Library() {
         />
       )}
       <Modal visible={!!playingRecording} animationType="slide">
-        <View className="flex-1 bg-[#FAFBF8] p-4">
-          <View className="flex-1 justify-center items-center">
-            <Text className="font-sans text-2xl font-bold text-primary mb-4">
+        <View className="flex-1 bg-background">
+        <Text className="font-sans text-2xl font-bold text-txtp mb-4 p-4 w-[100vw] bg-paper">
               {playingRecording?.name}
             </Text>
-            <Text className="font-sans text-lg text-center mb-8">{currentNote}</Text>
-          </View>
-          <View className="mb-8">
-            <View className="h-4 bg-gray-200 rounded-full">
+          <ScrollView className="flex-1 flex-start pl-2">
+            <Text className="text-6xl mb-8 text-txts">{currentNote}</Text>
+          </ScrollView>
+          <View className="mb-8 mx-4">
+            <View className="h-4 bg-paper rounded-full">
               <View
-                className="h-full bg-primary rounded-full"
+                className="h-full bg-txtp rounded-full"
                 style={{ width: `${(currentPosition / duration) * 100}%` }}
               />
             </View>
             <View className="flex-row justify-between mt-2">
-              <Text className="font-sans text-sm text-gray-500">
+              <Text className="font-sans text-sm text-txts">
                 {formatTime(currentPosition)}
               </Text>
-              <Text className="font-sans text-sm text-gray-500">
+              <Text className="font-sans text-sm text-txts">
                 {formatTime(duration)}
               </Text>
             </View>
@@ -292,27 +294,27 @@ export default function Library() {
               onPress={() => seekTo(Math.max(0, currentPosition - 10000))}
               className="mx-4"
             >
-              <Ionicons name="play-back" size={40} color="#8BB552" />
+              <Ionicons name="play-back" size={40} color="#ffffff" />
             </TouchableOpacity>
             <TouchableOpacity onPress={togglePlayPause} className="mx-4">
               <Ionicons
                 name={isPlaying ? "pause" : "play"}
                 size={60}
-                color="#8BB552"
+                color="#ffffff"
               />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => seekTo(Math.min(duration, currentPosition + 10000))}
               className="mx-4"
             >
-              <Ionicons name="play-forward" size={40} color="#8BB552" />
+              <Ionicons name="play-forward" size={40} color="#ffffff" />
             </TouchableOpacity>
           </View>
           <TouchableOpacity
             onPress={stopPlayback}
-            className="bg-red-500 rounded-full p-4 items-center"
+            className="bg-red-500 rounded-full p-4 items-center mb-4 mx-4"
           >
-            <Text className="font-sans text-white font-bold">Close</Text>
+            <Text className="font-sans text-txtp font-bold text-3xl">Close</Text>
           </TouchableOpacity>
         </View>
       </Modal>

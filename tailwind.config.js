@@ -6,12 +6,17 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ["WorkSans_700Bold", "System"], // Set Work Sans 700 as default sans font
-      },
+    },
       colors: {
-        primary: '#8BB552',
-        secondary: '#C3DE9D',
-        accent: '#A8D867',
-        background: '#111111'
+        primary: '#90caf9',
+        secondary: '#ce93d8',
+        accent: '#DEE2E6',
+        background: '#121212',
+        paper: '#1e1e1e',
+        txtp: '#ffffff',
+        txts: 'rgba(255, 255, 255, 0.7)',
+        btnRadius: '16px',
+        warning: '#f44336'
       }
     }, 
   },

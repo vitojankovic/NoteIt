@@ -44,14 +44,15 @@ const App: React.FC = () => {
 
                             return <Ionicons name={iconName} size={size} color={color} />;
                         },
-                        tabBarActiveTintColor: '#8BB552',
-                        tabBarInactiveTintColor: 'gray',
+                        tabBarActiveTintColor: '#ffffff',
+                        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.7)',
                         tabBarLabelStyle: {
                             fontFamily: 'WorkSans',
                             fontSize: 12,
                         },
                         tabBarStyle: {
-                            backgroundColor: '#111111',
+                            backgroundColor: '#121212',
+                            borderTopWidth: 0,
                         },
                     })}
                 >
