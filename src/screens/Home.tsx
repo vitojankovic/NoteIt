@@ -4,6 +4,7 @@ import { useRecordingContext } from './RecordingContext';
 import { useNavigation } from '@react-navigation/native';
 import LottieView from 'lottie-react-native';
 import Animated, { withSpring, withTiming, useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons'
 
 const HomePage = () => {
   const { recordings, loadRecordings } = useRecordingContext();
@@ -55,12 +56,12 @@ const HomePage = () => {
       <View className="mb-10 pt-12">
         <Animated.Text
           style={[fadeStyle, scaleStyle, { fontSize: 48, fontWeight: 'bold', color: '#ffffff' }]}
-          className="mb-2 font-sans"
+          className="mb-2"
         >
           Another Recording ?
         </Animated.Text>
         <Animated.Text
-          style={[fadeStyle, scaleStyle, { color: 'rgba(255, 255, 255, 0.7)', fontSize: 18 }]}
+          style={[fadeStyle, scaleStyle, { color: 'rgba(255, 255, 255, 0.7)', fontSize: 14 }]}
         >
           Assign text to any part of an audio and listen to it over and over!
         </Animated.Text>
@@ -83,9 +84,10 @@ const HomePage = () => {
       {/* Total Recordings Button */}
       <Animated.View className="items-center mt-8" style={[fadeStyle, scaleStyle]}>
         <TouchableOpacity
-          className="bg-paper text-txtp w-[80%] h-[75px] rounded-[16px] flex justify-center items-center text-center hover:bg-accent transition-colors duration-300 ease-in-out"
+          className="bg-paper text-txtp w-[80%] h-[75px] rounded-[16px] flex justify-center flex-row items-center text-center hover:bg-accent transition-colors duration-300 ease-in-out"
         >
-          <Text className="text-white text-lg font-semibold">
+          <Ionicons name="folder" size={24} color="#ffffff" style={{ marginRight: 12 }} />
+          <Text className="text-txtp text-1xl font-semibold">
             Total Recordings: {recordings.length}
           </Text>
         </TouchableOpacity>
@@ -95,9 +97,10 @@ const HomePage = () => {
       <Animated.View className="items-center mt-8" style={[fadeStyle, scaleStyle]}>
         <TouchableOpacity
           onPress={navigateToRecord}
-          className="bg-secondary text-txtp w-[80%] h-[75px] rounded-[16px] flex justify-center items-center text-center hover:bg-primary transition-colors duration-300 ease-in-out"
+          className="bg-secondary text-txtp w-[80%] h-[75px] rounded-[16px] flex-row flex justify-center items-center text-center hover:bg-primary transition-colors duration-300 ease-in-out"
         >
-          <Text className="text-white text-lg font-bold">
+          <Ionicons name="mic" size={24} color="#ffffff" style={{ marginRight: 12 }} />
+          <Text className="text-white text-1xl font-bold">
             Start Recording
           </Text>
         </TouchableOpacity>

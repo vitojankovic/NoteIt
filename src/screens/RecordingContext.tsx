@@ -31,54 +31,62 @@ export const RecordingProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 console.error('Document directory is not available');
                 return;
             }
-
+    
             console.log('Document directory:', documentDirectory);
             const dirs = await FileSystem.readDirectoryAsync(documentDirectory);
             console.log('Found directories:', dirs);
-            const loadedRecordings: RecordingMetadata[] = [];
-
+            const loadedRecordings = [];
+    
             for (const dir of dirs) {
+                // Only process directories that start with "recording_" and contain a hyphen, to filter out other files
                 if (!dir.startsWith('recording_') || !dir.includes('-')) continue;
-
+    
                 try {
                     const dirPath = `${documentDirectory}${dir}`;
                     const dirExists = await FileSystem.getInfoAsync(dirPath);
-                    if (!dirExists.exists) {
-                        console.log(`Directory doesn't exist: ${dirPath}`);
+    
+                    if (!dirExists.exists || !dirExists.isDirectory) {
+                        console.warn(`Skipping ${dirPath}: Not a valid directory.`);
                         continue;
                     }
-
+    
                     const metadataPath = `${dirPath}/metadata.json`;
-                    console.log('Checking metadata path:', metadataPath);
-                    
                     const metadataExists = await FileSystem.getInfoAsync(metadataPath);
+    
                     if (!metadataExists.exists) {
-                        console.log(`No metadata found at ${metadataPath}`);
+                        console.warn(`Missing metadata at ${metadataPath}. Deleting directory ${dirPath}.`);
+                        await FileSystem.deleteAsync(dirPath, { idempotent: true });
                         continue;
                     }
-
+    
                     const metadata = await FileSystem.readAsStringAsync(metadataPath);
-                    const parsedMetadata = JSON.parse(metadata) as RecordingMetadata;
-                    
+                    const parsedMetadata = JSON.parse(metadata);
+    
+                    // Check if audio file exists
                     const audioExists = await FileSystem.getInfoAsync(parsedMetadata.audioPath);
                     if (!audioExists.exists) {
-                        console.log(`Audio file missing at ${parsedMetadata.audioPath}`);
+                        console.warn(`Missing audio file at ${parsedMetadata.audioPath}. Deleting directory ${dirPath}.`);
+                        await FileSystem.deleteAsync(dirPath, { idempotent: true });
                         continue;
                     }
-
+    
+                    // If everything is valid, add to loaded recordings
                     loadedRecordings.push(parsedMetadata);
                     console.log(`Successfully loaded recording from ${dir}`);
                 } catch (error) {
                     console.error(`Error processing directory ${dir}:`, error);
+                    // Optionally, delete the problematic directory if errors keep occurring
+                    await FileSystem.deleteAsync(`${documentDirectory}${dir}`, { idempotent: true });
                 }
             }
-
+    
             setRecordings(loadedRecordings);
             console.log('Total recordings loaded:', loadedRecordings.length);
         } catch (error) {
             console.error('Error loading recordings:', error);
         }
     };
+    
 
     const addRecording = async (newRecording: RecordingMetadata) => {
         try {

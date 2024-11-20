@@ -76,6 +76,7 @@ export default function Library() {
 
       await newSound.playAsync()
 
+
       // Start interval to update position frequently
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
@@ -89,6 +90,13 @@ export default function Library() {
   const onPlaybackStatusUpdate = (status: any) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying)
+      
+      // ** Force a position update while playing **
+      if (status.isPlaying) {
+        setCurrentPosition(status.positionMillis)
+        positionRef.current = status.positionMillis
+      }
+  
       if (status.didJustFinish) {
         setPlayingRecording(null)
         setCurrentPosition(0)
@@ -98,6 +106,7 @@ export default function Library() {
       }
     }
   }
+  
 
   const stopPlayback = async () => {
     if (sound) {
@@ -196,12 +205,12 @@ export default function Library() {
     return (
       <GestureHandlerRootView>
       <Swipeable
-        renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, item)}
+        renderRightActions={(progress, dragX) => renderRightActions(progress, dragX, item, item.name)}
         rightThreshold={-100}
       >
         <TouchableOpacity
           onPress={() => playRecording(item)}
-          className="bg-paper rounded-lg p-4 mb-4 rounded-[40px] h-[100px] flex shadow-lg shadow"
+          className="bg-paper rounded-lg p-4 mb-4 rounded-[20px] h-[100px] flex shadow-lg shadow"
         >
           <Text className="text-lg font-bold text-txtp text-center">{item.name}</Text>
           
@@ -214,7 +223,7 @@ export default function Library() {
   }
 
 
-  const renderRightActions = (progress: Animated.AnimatedInterpolation, dragX: Animated.AnimatedInterpolation, item: RecordingMetadata) => {
+  const renderRightActions = (progress: Animated.AnimatedInterpolation, dragX: Animated.AnimatedInterpolation, item: RecordingMetadata, name) => {
     const trans = dragX.interpolate({
       inputRange: [-100, 0],
       outputRange: [1, 0],
@@ -223,22 +232,28 @@ export default function Library() {
     return (
       <TouchableOpacity
         style={{
-          backgroundColor: 'red',
+          backgroundColor: '#1e1e1e',
           justifyContent: 'center',
-          alignItems: 'flex-end',
+          alignItems: 'center',
           padding: 20,
-          width: 1000,
+          width: "100%",
+          height: 100,
+          borderRadius: '24px'
         }}
         onPress={() => deleteRecording(item.audioPath)}
       >
         <Animated.Text
           style={{
-            color: 'white',
+            color: '#f44336',
             fontWeight: '600',
             transform: [{ translateX: trans }],
+            display: 'flex',
+            flexDirection: 'row',
+            textAlign: 'center',
+            fontSize: 24
           }}
         >
-          Delete
+          Delete {name}
         </Animated.Text>
       </TouchableOpacity>
     )

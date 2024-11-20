@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, Alert, TouchableOpacity, Pressable } from 'react-native';
+import { View, Text, Alert, TouchableOpacity, Pressable } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
-import { Picker } from '@react-native-picker/picker';
+import DropDownPicker from 'react-native-dropdown-picker';  // Importing the dropdown picker
 import { useRecordingContext, RecordingMetadata } from './RecordingContext';
 import LottieView from 'lottie-react-native';
 import Animated, { withTiming, useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
@@ -17,14 +17,12 @@ export default function ExportImport() {
   const fadeAnimTitle = useSharedValue(0);
   const fadeAnimButtons = useSharedValue(0);
   const fadeAnimLottie = useSharedValue(0);
-  const fadeAnimModal = useSharedValue(0);
 
   // Trigger staggered animations on component mount
   useEffect(() => {
     fadeAnimTitle.value = withTiming(1, { duration: 1500 });
     fadeAnimLottie.value = withTiming(1, { duration: 1000 });
     fadeAnimButtons.value = withTiming(1, { duration: 2000 });
-    fadeAnimModal.value = withTiming(1, { duration: 3000 });
   }, []);
 
   // Animated styles for staggered fade-in effect
@@ -38,10 +36,6 @@ export default function ExportImport() {
 
   const fadeStyleLottie = useAnimatedStyle(() => ({
     opacity: fadeAnimLottie.value,
-  }));
-
-  const fadeStyleModal = useAnimatedStyle(() => ({
-    opacity: fadeAnimModal.value,
   }));
 
   const handleOpenExportModal = () => setIsPicking(true);
@@ -135,42 +129,91 @@ export default function ExportImport() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Modal for Export Selection */}
-      <Modal visible={isPicking} animationType="slide" transparent={true} onRequestClose={() => setIsPicking(false)}>
-        <Animated.View style={[fadeStyleModal, { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)' }]}>
-          <View className="w-4/5 bg-paper rounded-[16px] p-6 shadow-lg">
-            <Text className="text-lg font-bold text-txtp mb-4">Select a Recording to Export:</Text>
-            <View className="border border-txts rounded-[16px] mb-4 overflow-hidden">
-              <Picker
-                selectedValue={selectedRecording}
-                onValueChange={(itemValue) => setSelectedRecording(itemValue)}
+      {/* Full-Screen Overlay for Export Selection */}
+      {isPicking && (
+        <View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
+        >
+          <View
+            style={{
+              width: '90%',
+              maxWidth: 400,
+              backgroundColor: '#ffffff',
+              borderRadius: 16,
+              padding: 20,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: '#333',
+                marginBottom: 16,
+              }}
+            >
+              Select a Recording to Export:
+            </Text>
+
+            {/* Dropdown Picker */}
+            <DropDownPicker
+              items={[
+                { label: "Select a recording", value: null },
+                ...recordings.map((recording) => ({
+                  label: recording.name || `Recording ${recording.id}`,
+                  value: recording,
+                })),
+              ]}
+              defaultValue={selectedRecording}
+              onChangeItem={(item) => setSelectedRecording(item.value)}
+              containerStyle={{
+                height: 50,
+                borderRadius: 12,
+                marginBottom: 16,
+                borderWidth: 1,
+              }}
+              style={{ backgroundColor: '#fff' }}
+              dropDownStyle={{
+                backgroundColor: '#fff',
+              }}
+            />
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Pressable
+                onPress={() => setIsPicking(false)}
+                style={{
+                  backgroundColor: '#f44336',
+                  paddingVertical: 10,
+                  paddingHorizontal: 20,
+                  borderRadius: 12,
+                }}
               >
-                <Picker.Item label="Select a recording" value={null} />
-                {recordings.map((recording) => (
-                  <Picker.Item
-                    key={recording.id}
-                    label={recording.name || `Recording ${recording.id}`}
-                    value={recording}
-                    color="#ffffff"
-                  />
-                ))}
-              </Picker>
-            </View>
-            <View className="flex-row justify-between">
-              <Pressable onPress={() => setIsPicking(false)} className="bg-secondary px-4 py-2 rounded-[16px]">
-                <Text className="text-txtp">Cancel</Text>
+                <Text style={{ color: '#ffff', fontSize: 16 }}>Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={handleShareRecording}
                 disabled={!selectedRecording}
-                className={`px-4 py-2 rounded-[16px] ${selectedRecording ? 'bg-primary' : 'bg-primary/50'}`}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 20,
+                  borderRadius: 12,
+                  backgroundColor: selectedRecording ? '#4a90e2' : '#a0c4e9',
+                }}
               >
-                <Text className="text-txtp">Share</Text>
+                <Text style={{ color: '#fff', fontSize: 16 }}>Share</Text>
               </Pressable>
             </View>
           </View>
-        </Animated.View>
-      </Modal>
+        </View>
+      )}
     </View>
   );
 }
